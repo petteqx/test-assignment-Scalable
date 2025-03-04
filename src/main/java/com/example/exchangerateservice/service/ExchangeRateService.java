@@ -8,7 +8,10 @@ import java.util.Optional;
 
 public interface ExchangeRateService {
     Optional<ExchangeRateResponse> getExchangeRate(String baseCurrency, String targetCurrency);
+
     Map<String, Integer> getAccessCounterMap();
 
     Optional<ExchangeRateAmountResponse> getConvertedAmount(String baseCurrency, String targetCurrency, double amount);
+
+    void updateExchangeRates();
 }

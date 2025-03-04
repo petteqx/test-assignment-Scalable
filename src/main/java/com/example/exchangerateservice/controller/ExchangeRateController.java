@@ -2,7 +2,7 @@ package com.example.exchangerateservice.controller;
 
 import com.example.exchangerateservice.dto.ExchangeRateAmountResponse;
 import com.example.exchangerateservice.dto.ExchangeRateResponse;
-import com.example.exchangerateservice.service.ExchangeRateServiceImpl;
+import com.example.exchangerateservice.service.ExchangeRateService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,10 +16,10 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/exchange-rate")
 public class ExchangeRateController {
-    private final ExchangeRateServiceImpl exchangeRateService;
+    private final ExchangeRateService exchangeRateService;
 
     @Autowired
-    public ExchangeRateController(ExchangeRateServiceImpl exchangeRateService) {
+    public ExchangeRateController(ExchangeRateService exchangeRateService) {
         this.exchangeRateService = exchangeRateService;
     }
 
@@ -29,11 +29,7 @@ public class ExchangeRateController {
 
         Optional<ExchangeRateResponse> response = exchangeRateService.getExchangeRate(baseCurrency, targetCurrency);
 
-        if (response.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        } else {
-            return ResponseEntity.ok(response.get());
-        }
+        return ResponseEntity.ok(response.get());
     }
 
     @GetMapping("/supported-currencies")
@@ -46,10 +42,7 @@ public class ExchangeRateController {
                                                                        @RequestParam(name = "target") String targetCurrency,
                                                                        @RequestParam(name = "amount") double amount) {
         Optional<ExchangeRateAmountResponse> response = exchangeRateService.getConvertedAmount(baseCurrency, targetCurrency, amount);
-        if (response.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        } else {
-            return ResponseEntity.ok(response.get());
-        }
+
+        return ResponseEntity.ok(response.get());
     }
 }

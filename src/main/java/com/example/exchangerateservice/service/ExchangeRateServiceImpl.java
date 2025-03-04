@@ -6,10 +6,9 @@ import com.example.exchangerateservice.dto.ExchangeRatesDTO;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-
-import java.io.File;
+import org.springframework.web.client.RestTemplate;
 import java.io.IOException;
-import java.net.URL;
+import java.io.InputStream;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -30,7 +29,12 @@ public class ExchangeRateServiceImpl implements ExchangeRateService {
     @Scheduled(fixedRate = 3600000)
     public void updateExchangeRates() {
         try {
-            ExchangeRatesDTO exchangeRatesDTO = xmlMapper.readValue(new File("C:\\Users\\Dragonborn\\Desktop\\exchangerateservice\\exchangerateservice\\src\\main\\resources\\eurofxref-daily.xml"), ExchangeRatesDTO.class);
+//            RestTemplate restTemplate = new RestTemplate();
+//            ExchangeRatesDTO exchangeRatesDTO = xmlMapper.readValue(restTemplate.getForObject(ECB_API_URL, String.class), ExchangeRatesDTO.class);
+
+            InputStream inputStream = getClass().getClassLoader().getResourceAsStream("eurofxref-daily.xml");
+
+            ExchangeRatesDTO exchangeRatesDTO = xmlMapper.readValue(inputStream, ExchangeRatesDTO.class);
 
             exchangeRateMap = exchangeRatesDTO.outerCube().innerCube().rates().stream()
                     .collect(Collectors.toMap(ExchangeRateResponse::target, ExchangeRateResponse::rate));
@@ -49,6 +53,8 @@ public class ExchangeRateServiceImpl implements ExchangeRateService {
 
     @Override
     public Optional<ExchangeRateResponse> getExchangeRate(String baseCurrency, String targetCurrency) {
+        updateExchangeRates();
+
         baseCurrency = Optional.ofNullable(baseCurrency)
                 .map(String::toUpperCase)
                 .orElse("");
@@ -57,13 +63,11 @@ public class ExchangeRateServiceImpl implements ExchangeRateService {
                 .map(String::toUpperCase)
                 .orElse("");
 
-        Double baseRate = exchangeRateMap.get(baseCurrency);
-        Double targetRate = exchangeRateMap.get(targetCurrency);
+        Double conversionRate = getFinalRate(baseCurrency, targetCurrency);
 
-        if (baseRate != null && targetRate != null) {
-            accessCounterMap.merge(baseCurrency, 1, Integer::sum);
-            accessCounterMap.merge(targetCurrency, 1, Integer::sum);
-            return Optional.of(new ExchangeRateResponse(baseCurrency, targetCurrency, targetRate / baseRate));
+        if (conversionRate != null) {
+            updateAccessCounterMap(baseCurrency, targetCurrency);
+            return Optional.of(new ExchangeRateResponse(baseCurrency, targetCurrency, conversionRate));
         }
         return Optional.empty();
     }
@@ -75,6 +79,8 @@ public class ExchangeRateServiceImpl implements ExchangeRateService {
 
     @Override
     public Optional<ExchangeRateAmountResponse> getConvertedAmount(String baseCurrency, String targetCurrency, double amount) {
+        updateExchangeRates();
+
         baseCurrency = Optional.ofNullable(baseCurrency)
                 .map(String::toUpperCase)
                 .orElse("");
@@ -83,21 +89,33 @@ public class ExchangeRateServiceImpl implements ExchangeRateService {
                 .map(String::toUpperCase)
                 .orElse("");
 
-        updateExchangeRates();
+        Double conversionRate = getFinalRate(baseCurrency, targetCurrency);
 
+        if (conversionRate != null) {
+            Double convertedAmount = conversionRate * amount;
+
+            updateAccessCounterMap(baseCurrency, targetCurrency);
+
+            return Optional.of(new ExchangeRateAmountResponse(baseCurrency, targetCurrency, amount, convertedAmount));
+        }
+        return Optional.empty();
+
+    }
+
+    private Double getFinalRate(String baseCurrency, String targetCurrency) {
         Double baseRate = exchangeRateMap.get(baseCurrency);
         Double targetRate = exchangeRateMap.get(targetCurrency);
 
         if (baseRate != null && targetRate != null) {
             Double conversionRate = targetRate / baseRate;
-            Double convertedAmount = conversionRate * amount;
-
-            accessCounterMap.merge(baseCurrency, 1, Integer::sum);
-            accessCounterMap.merge(targetCurrency, 1, Integer::sum);
-
-            return Optional.of(new ExchangeRateAmountResponse(baseCurrency, targetCurrency, amount, convertedAmount));
+            return conversionRate;
         } else {
-            return Optional.empty();
+            return null;
         }
+    }
+
+    private void updateAccessCounterMap(String baseCurrency, String targetCurrency) {
+        accessCounterMap.merge(baseCurrency, 1, Integer::sum);
+        accessCounterMap.merge(targetCurrency, 1, Integer::sum);
     }
 }
